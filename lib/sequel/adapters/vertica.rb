@@ -132,6 +132,7 @@ module Sequel
       TIMESERIES = ' TIMESERIES '.freeze
       OVER = ' OVER '.freeze
       AS = ' AS '.freeze
+      REGEXP_LIKE = 'REGEXP_LIKE'.freeze
       SPACE = Dataset::SPACE
       PAREN_OPEN = Dataset::PAREN_OPEN
       PAREN_CLOSE = Dataset::PAREN_CLOSE
@@ -185,19 +186,34 @@ module Sequel
         true
       end
 
+      def regexp_like(sql, source, pattern, options = nil)
+        sql << REGEXP_LIKE
+        sql << PAREN_OPEN
+        literal_append(sql, source)
+        sql << COMMA
+        literal_append(sql, pattern)
+
+        if options
+          sql << COMMA
+          literal_append(sql, options)
+        end
+
+        sql << PAREN_CLOSE
+      end
+
       # Use the ILIKE and NOT ILIKE operators.
       def complex_expression_sql_append(sql, op, args)
         case op
-          when :ILIKE, :'NOT ILIKE'
-            sql << PAREN_OPEN
-            literal_append(sql, args.at(0))
-            sql << SPACE << op.to_s << SPACE
-            literal_append(sql, args.at(1))
-            sql << ESCAPE
-            literal_append(sql, BACKSLASH)
-            sql << PAREN_CLOSE
-          else
-            super
+        when :ILIKE, :'NOT ILIKE'
+          # strip off like wildcards
+          search = args.at(1).sub(/^%/,"").sub(/%$/,"")
+          regexp_like(sql, args[0], search, 'i')
+        when :'~'
+          regexp_like(sql, args[0], args[1])
+        when :'~*'
+          regexp_like(sql, args[0], args[1], 'i')
+        else
+          super
         end
       end
     end
